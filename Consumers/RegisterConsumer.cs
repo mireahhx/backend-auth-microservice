@@ -11,7 +11,7 @@ namespace AuthMicroservice.Consumers {
             var token = await _authService.Register(context.Message.Username, context.Message.Password);
 
             if (!token.IsSuccess) {
-                await context.RespondAsync<ServiceError>(new() {
+                await context.RespondAsync<IServiceError>(new() {
                     Error = token.Error
                 });
             } else {

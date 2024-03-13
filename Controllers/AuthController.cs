@@ -1,5 +1,7 @@
 ﻿using AuthMicroservice.Services;
+using MassTransit;
 using Microsoft.AspNetCore.Mvc;
+using Shared.Configuration.Extensions;
 using Shared.Interfaces.Auth;
 using Shared.Results;
 
@@ -19,6 +21,8 @@ namespace AuthMicroservice.Controllers {
                 return BadRequest(generator.Error(token.Error));
             }
 
+            HttpContext.Response.Cookies.Append(_configuration.GetOrThrow("ApiGateway:Http:Cookies:AuthToken"), token.Result);
+
             return Ok(generator.Success(new() {
                 Token = token.Result
             }));
@@ -32,6 +36,8 @@ namespace AuthMicroservice.Controllers {
             if (!token.IsSuccess) {
                 return BadRequest(generator.Error(token.Error));
             }
+
+            HttpContext.Response.Cookies.Append(_configuration.GetOrThrow("ApiGateway:Http:Cookies:AuthToken"), token.Result);
 
             return Ok(generator.Success(new() {
                 Token = token.Result

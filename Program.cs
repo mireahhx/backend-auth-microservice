@@ -1,6 +1,7 @@
 using AuthMicroservice.Consumers;
 using AuthMicroservice.Services;
 using MassTransit;
+using RabbitMQ.Client;
 using Shared.Configuration.Extensions;
 using Shared.Interfaces.Users;
 
@@ -8,14 +9,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddJsonFilesFromDirectory(builder.Configuration.GetOrThrow("ConfigsDirectory"));
 
+builder.Services.AddSingleton<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddControllers();
+builder.WebHost.UseUrls(builder.Configuration.GetOrThrow("Auth:Url"));
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddMassTransit(massTransitConfig => {
     massTransitConfig.AddConsumer<LoginConsumer>();
     massTransitConfig.AddConsumer<RegisterConsumer>();
+    massTransitConfig.AddConsumer<VerifyConsumer>();
 
     massTransitConfig.AddRequestClient<IGetUserByUsernameRequest>(new Uri(builder.Configuration.GetOrThrow("Users:Endpoints:GetUserById:Uri")));
     massTransitConfig.AddRequestClient<ICreateUserRequest>(new Uri(builder.Configuration.GetOrThrow("Users:Endpoints:CreateUser:Uri")));
@@ -28,46 +32,56 @@ builder.Services.AddMassTransit(massTransitConfig => {
 
         rabbitMqConfig.ReceiveEndpoint(builder.Configuration.GetOrThrow("Auth:Endpoints:Login:Queue"), endpointConfig => {
             endpointConfig.Bind(builder.Configuration.GetOrThrow("Auth:Endpoints:Login:Exchange"), exchangeConfig => {
-                exchangeConfig.ExchangeType = "direct";
+                exchangeConfig.ExchangeType = ExchangeType.Direct;
 
-                if (builder.Environment.IsDevelopment()) {
-                    exchangeConfig.AutoDelete = true;
-                    exchangeConfig.Durable = false;
-                }
+                exchangeConfig.AutoDelete = true;
+                exchangeConfig.Durable = false;
             });
 
-            if (builder.Environment.IsDevelopment()) {
-                endpointConfig.AutoDelete = true;
-                endpointConfig.Durable = false;
-            }
+            endpointConfig.AutoDelete = true;
+            endpointConfig.Durable = false;
 
             endpointConfig.ConfigureConsumer<LoginConsumer>(context);
         });
 
         rabbitMqConfig.ReceiveEndpoint(builder.Configuration.GetOrThrow("Auth:Endpoints:Register:Queue"), endpointConfig => {
             endpointConfig.Bind(builder.Configuration.GetOrThrow("Auth:Endpoints:Register:Exchange"), exchangeConfig => {
-                exchangeConfig.ExchangeType = "direct";
+                exchangeConfig.ExchangeType = ExchangeType.Direct;
 
-                if (builder.Environment.IsDevelopment()) {
-                    exchangeConfig.AutoDelete = true;
-                    exchangeConfig.Durable = false;
-                }
+                exchangeConfig.AutoDelete = true;
+                exchangeConfig.Durable = false;
             });
 
-            if (builder.Environment.IsDevelopment()) {
-                endpointConfig.AutoDelete = true;
-                endpointConfig.Durable = false;
-            }
+            endpointConfig.AutoDelete = true;
+            endpointConfig.Durable = false;
 
             endpointConfig.ConfigureConsumer<RegisterConsumer>(context);
+        });
+
+        rabbitMqConfig.ReceiveEndpoint(builder.Configuration.GetOrThrow("Auth:Endpoints:Verify:Queue"), endpointConfig => {
+            endpointConfig.Bind(builder.Configuration.GetOrThrow("Auth:Endpoints:Verify:Exchange"), exchangeConfig => {
+                exchangeConfig.ExchangeType = ExchangeType.Direct;
+
+                exchangeConfig.AutoDelete = true;
+                exchangeConfig.Durable = false;
+            });
+
+            endpointConfig.AutoDelete = true;
+            endpointConfig.Durable = false;
+
+            endpointConfig.ConfigureConsumer<VerifyConsumer>(context);
         });
     });
 });
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwagger(swaggerConfig => {
+    swaggerConfig.RouteTemplate = app.Configuration.GetOrThrow("Auth:Swagger:RouteTemplate");
+});
+app.UseSwaggerUI(swaggerUiConfig => {
+    swaggerUiConfig.RoutePrefix = app.Configuration.GetOrThrow("Auth:Swagger:RoutePrefix");
+});
 
 app.MapControllers();
 
